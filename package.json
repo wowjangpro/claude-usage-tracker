@@ -49,14 +49,14 @@
       "target": [
         "dmg"
       ],
-      "hardenedRuntime": true,
+      "hardenedRuntime": false,
       "gatekeeperAssess": false,
+      "identity": null,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "dmg": {
-      "title": "Claude Usage Tracker",
-      "sign": false
+      "title": "Claude Usage Tracker"
     },
     "files": [
       "dist/**/*",

@@ -162,9 +162,11 @@ export class ClaudeWrapper {
       throw new Error('Claude projects 디렉토리가 존재하지 않습니다');
     }
 
-    const seenMessages = new Set();
     const cutoffTime = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    const dailyStats = {};
+
+    // Phase 1: 모든 엔트리를 읽고 같은 message_id는 마지막 값으로 덮어씀
+    // (스트리밍 응답 시 같은 message_id로 여러 엔트리가 기록되며, 마지막 엔트리가 최종 토큰 값을 가짐)
+    const messageData = {};
 
     const files = await this.findJsonlFiles(projectsDir);
 
@@ -195,27 +197,40 @@ export class ClaudeWrapper {
           const usage = message.usage || {};
 
           if (!usage || Object.keys(usage).length === 0) continue;
-          if (msgId && seenMessages.has(msgId)) continue;
 
-          if (msgId) seenMessages.add(msgId);
+          // message ID가 있으면 그걸 키로, 없으면 타임스탬프로 고유 키 생성
+          const key = msgId || `no_id_${timestamp}`;
 
-          if (!dailyStats[dateStr]) {
-            dailyStats[dateStr] = {
-              input_tokens: 0,
-              output_tokens: 0,
-              cache_creation_tokens: 0,
-              cache_read_tokens: 0,
-              message_count: 0,
-            };
-          }
-
-          dailyStats[dateStr].input_tokens += usage.input_tokens || 0;
-          dailyStats[dateStr].output_tokens += usage.output_tokens || 0;
-          dailyStats[dateStr].cache_creation_tokens += usage.cache_creation_input_tokens || 0;
-          dailyStats[dateStr].cache_read_tokens += usage.cache_read_input_tokens || 0;
-          dailyStats[dateStr].message_count += 1;
+          // 항상 덮어씀 - 마지막 엔트리가 최종 토큰 값을 가짐
+          messageData[key] = {
+            dateStr,
+            usage,
+          };
         } catch {}
       }
+    }
+
+    // Phase 2: 최종 값으로 집계
+    const dailyStats = {};
+
+    for (const data of Object.values(messageData)) {
+      const { dateStr, usage } = data;
+
+      if (!dailyStats[dateStr]) {
+        dailyStats[dateStr] = {
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_creation_tokens: 0,
+          cache_read_tokens: 0,
+          message_count: 0,
+        };
+      }
+
+      dailyStats[dateStr].input_tokens += usage.input_tokens || 0;
+      dailyStats[dateStr].output_tokens += usage.output_tokens || 0;
+      dailyStats[dateStr].cache_creation_tokens += usage.cache_creation_input_tokens || 0;
+      dailyStats[dateStr].cache_read_tokens += usage.cache_read_input_tokens || 0;
+      dailyStats[dateStr].message_count += 1;
     }
 
     const daily = Object.keys(dailyStats)
