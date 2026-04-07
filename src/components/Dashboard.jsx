@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { api } from '../api';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -24,12 +25,7 @@ ChartJS.register(
 );
 
 function Dashboard({ status, onUploadNow, usageData, setUsageData, loading, setLoading }) {
-  const isElectron = () => {
-    return typeof window !== 'undefined' && window.electronAPI !== undefined;
-  };
-
   useEffect(() => {
-    // 데이터가 없거나 비어있을 때만 로드
     if (usageData.daily.length === 0) {
       loadUsageData();
     }
@@ -38,12 +34,8 @@ function Dashboard({ status, onUploadNow, usageData, setUsageData, loading, setL
   }, []);
 
   async function loadUsageData() {
-    if (!isElectron()) {
-      setLoading(false);
-      return;
-    }
     try {
-      const result = await window.electronAPI.getUsageData();
+      const result = await api.getUsageData();
       if (result && result.daily) {
         setUsageData(result);
       }

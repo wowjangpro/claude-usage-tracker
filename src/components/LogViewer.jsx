@@ -1,13 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+import { api } from '../api';
 
 function LogViewer() {
   const [logs, setLogs] = useState([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const logsEndRef = useRef(null);
-
-  const isElectron = () => {
-    return typeof window !== 'undefined' && window.electronAPI !== undefined;
-  };
 
   useEffect(() => {
     loadLogs();
@@ -26,11 +23,7 @@ function LogViewer() {
   }, [logs, autoScroll]);
 
   async function loadLogs() {
-    if (!isElectron()) {
-      setLogs([]);
-      return;
-    }
-    const result = await window.electronAPI.getLogs();
+    const result = await api.getLogs();
     setLogs(result);
   }
 

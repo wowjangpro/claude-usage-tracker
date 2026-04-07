@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { api } from './api';
 import Dashboard from './components/Dashboard';
 import Settings from './components/Settings';
 import LogViewer from './components/LogViewer';
@@ -9,11 +10,6 @@ function App() {
   const [status, setStatus] = useState({ running: false, uploadCount: 0 });
   const [usageData, setUsageData] = useState({ daily: [] });
   const [usageDataLoading, setUsageDataLoading] = useState(true);
-
-  // Electron API가 있는지 확인 (함수로)
-  const isElectron = () => {
-    return typeof window !== 'undefined' && window.electronAPI !== undefined;
-  };
 
   useEffect(() => {
     loadConfig();
@@ -27,36 +23,17 @@ function App() {
   }, []);
 
   async function loadConfig() {
-    if (!isElectron()) {
-      // 브라우저 모드: 기본값 사용
-      setConfig({
-        serverUrl: 'http://10.12.200.99:3498',
-        uploadInterval: 600,
-        userEmail: '',
-      });
-      return;
-    }
-    const cfg = await window.electronAPI.getConfig();
+    const cfg = await api.getConfig();
     setConfig(cfg);
   }
 
   async function updateStatus() {
-    if (!isElectron()) {
-      setStatus({ running: false, uploadCount: 0 });
-      return;
-    }
-    const st = await window.electronAPI.getStatus();
+    const st = await api.getStatus();
     setStatus(st);
   }
 
-
   async function handleSaveConfig(newConfig) {
-    if (!isElectron()) {
-      setConfig(newConfig);
-      return;
-    }
-
-    const result = await window.electronAPI.saveConfig(newConfig);
+    const result = await api.saveConfig(newConfig);
 
     if (result.success) {
       setConfig(newConfig);
@@ -66,13 +43,9 @@ function App() {
   }
 
   async function handleUploadNow() {
-    if (!isElectron()) {
-      alert('Electron 환경에서만 사용 가능합니다');
-      return;
-    }
     try {
       setUsageDataLoading(true);
-      const result = await window.electronAPI.uploadNow();
+      const result = await api.uploadNow();
       if (result && result.daily) {
         setUsageData(result);
       }
@@ -81,7 +54,7 @@ function App() {
       alert('업로드가 완료되었습니다');
     } catch (error) {
       setUsageDataLoading(false);
-      alert(`업로드 실패: ${error.message}`);
+      alert(`업로드 실패: ${error}`);
     }
   }
 
