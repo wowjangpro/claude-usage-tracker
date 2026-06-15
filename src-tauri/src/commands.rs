@@ -39,6 +39,11 @@ pub async fn get_usage_data() -> Result<UsageData, String> {
 }
 
 #[tauri::command]
+pub async fn get_projects() -> Result<Vec<ProjectInfo>, String> {
+    claude_wrapper::list_projects().await
+}
+
+#[tauri::command]
 pub async fn upload_now(state: State<'_, AppState>) -> Result<UsageData, String> {
     claude_wrapper::upload_usage_data(&state).await
 }

@@ -18,6 +18,7 @@ pub fn run() {
             commands::save_config,
             commands::get_status,
             commands::get_usage_data,
+            commands::get_projects,
             commands::upload_now,
             commands::get_logs,
         ])
