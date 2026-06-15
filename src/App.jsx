@@ -131,6 +131,7 @@ function App() {
         {activeTab === 'dashboard' && (
           <Dashboard
             status={status}
+            config={config}
             onUploadNow={handleUploadNow}
             usageData={usageData}
             setUsageData={setUsageData}

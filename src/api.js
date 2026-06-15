@@ -5,6 +5,7 @@ export const api = {
   saveConfig: (config) => invoke('save_config', { config }),
   getStatus: () => invoke('get_status'),
   getUsageData: () => invoke('get_usage_data'),
+  getProjects: () => invoke('get_projects'),
   uploadNow: () => invoke('upload_now'),
   getLogs: () => invoke('get_logs'),
 };

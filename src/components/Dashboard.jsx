@@ -24,7 +24,38 @@ ChartJS.register(
   Legend
 );
 
-function Dashboard({ status, onUploadNow, usageData, setUsageData, loading, setLoading }) {
+// 여러 프로젝트의 일별 사용량을 날짜 기준으로 합산한다.
+function aggregateDaily(projects) {
+  const map = new Map();
+  for (const p of projects) {
+    for (const d of p.daily) {
+      const cur = map.get(d.date) || {
+        date: d.date,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalCacheWriteTokens: 0,
+        totalCacheReadTokens: 0,
+        totalTokens: 0,
+        requestCount: 0,
+      };
+      cur.totalInputTokens += d.totalInputTokens;
+      cur.totalOutputTokens += d.totalOutputTokens;
+      cur.totalCacheWriteTokens += d.totalCacheWriteTokens;
+      cur.totalCacheReadTokens += d.totalCacheReadTokens;
+      cur.totalTokens += d.totalTokens;
+      cur.requestCount += d.requestCount;
+      map.set(d.date, cur);
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function Dashboard({ status, config, onUploadNow, usageData, setUsageData, loading, setLoading }) {
+  // 필터: 'all'(전체) | 'selected'(전송 대상) | 'unselected'(미전송) | 'custom'(직접 선택)
+  const [preset, setPreset] = useState('all');
+  const [visibleIds, setVisibleIds] = useState(null); // null = 전체 표시
+  const [showProjectList, setShowProjectList] = useState(false);
+
   useEffect(() => {
     if (usageData.daily.length === 0) {
       loadUsageData();
@@ -46,7 +77,48 @@ function Dashboard({ status, onUploadNow, usageData, setUsageData, loading, setL
     }
   }
 
-  const recentData = usageData.daily.slice(-30);
+  const projects = usageData.projects || [];
+  const allIds = projects.map((p) => p.projectId);
+
+  // 설정에서 전송 대상으로 지정된 프로젝트 (null이면 전체가 대상 = 기존 호환)
+  const configured = config?.selectedProjects ?? null;
+  const isSelected = (id) => (configured === null ? true : configured.includes(id));
+
+  // 현재 화면에 표시할 프로젝트 ID 집합
+  const effectiveVisible = visibleIds === null ? new Set(allIds) : new Set(visibleIds);
+
+  function applyPreset(name) {
+    setPreset(name);
+    if (name === 'all') {
+      setVisibleIds(null);
+    } else if (name === 'selected') {
+      setVisibleIds(allIds.filter((id) => isSelected(id)));
+    } else if (name === 'unselected') {
+      setVisibleIds(allIds.filter((id) => !isSelected(id)));
+    }
+  }
+
+  function toggleVisible(id) {
+    const next = new Set(effectiveVisible);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setPreset('custom');
+    setVisibleIds([...next]);
+  }
+
+  const visibleProjects = projects.filter((p) => effectiveVisible.has(p.projectId));
+  const filteredDaily = aggregateDaily(visibleProjects);
+
+  const presetButtons = [
+    { key: 'all', label: `전체 (${projects.length})` },
+    { key: 'selected', label: `전송 대상 (${allIds.filter(isSelected).length})` },
+    { key: 'unselected', label: `미전송 (${allIds.filter((id) => !isSelected(id)).length})` },
+  ];
+
+  const recentData = filteredDaily.slice(-30);
 
   const tokenChartData = {
     labels: recentData.map((d) => d.date),
@@ -128,7 +200,7 @@ function Dashboard({ status, onUploadNow, usageData, setUsageData, loading, setL
   };
 
   const todayKST = getTodayLocal();
-  const todayData = usageData.daily.find((d) => d.date === todayKST) || {
+  const todayData = filteredDaily.find((d) => d.date === todayKST) || {
     totalTokens: 0,
     requestCount: 0,
     totalInputTokens: 0,
@@ -147,6 +219,72 @@ function Dashboard({ status, onUploadNow, usageData, setUsageData, loading, setL
         >
           즉시 업로드
         </button>
+      </div>
+
+      {/* 프로젝트 필터 */}
+      <div className="mb-6 bg-gray-800 p-4 rounded-lg border border-gray-700">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-gray-400 mr-1">표시 데이터:</span>
+            {presetButtons.map((btn) => (
+              <button
+                key={btn.key}
+                onClick={() => applyPreset(btn.key)}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                  preset === btn.key
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                {btn.label}
+              </button>
+            ))}
+            {preset === 'custom' && (
+              <span className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white">
+                직접 선택 ({effectiveVisible.size})
+              </span>
+            )}
+          </div>
+          {projects.length > 0 && (
+            <button
+              onClick={() => setShowProjectList((v) => !v)}
+              className="px-3 py-1.5 text-sm rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+            >
+              {showProjectList ? '프로젝트별 닫기' : '프로젝트별 선택'}
+            </button>
+          )}
+        </div>
+
+        {showProjectList && projects.length > 0 && (
+          <div className="mt-4 max-h-64 overflow-auto border border-gray-700 rounded-lg p-2 space-y-1">
+            {projects.map((p) => (
+              <label
+                key={p.projectId}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-700 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={effectiveVisible.has(p.projectId)}
+                  onChange={() => toggleVisible(p.projectId)}
+                  className="w-4 h-4 accent-blue-500"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-white truncate">{p.projectName}</div>
+                  <div className="text-xs text-gray-500 truncate">{p.projectPath}</div>
+                </div>
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
+                    isSelected(p.projectId)
+                      ? 'bg-green-900 text-green-300'
+                      : 'bg-gray-700 text-gray-400'
+                  }`}
+                >
+                  {isSelected(p.projectId) ? '전송' : '미전송'}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 오늘 사용량 */}
